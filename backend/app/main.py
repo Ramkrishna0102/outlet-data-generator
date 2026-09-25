@@ -1,5 +1,5 @@
 from io import BytesIO
-from math import cos, radians
+from math import cos, radians, sin, sqrt
 from random import Random
 
 import pandas as pd
@@ -93,25 +93,66 @@ def generate_data(request: GenerationRequest) -> pd.DataFrame:
     center_lat, center_lon = LOCATIONS[request.location]
     rows = []
     outlet_number = 1
+    golden_angle = 2.399963229728653
 
-    for d in range(1, request.distributors + 1):
-        distributor_id = f"D{d:04d}"
-        distributor_name = f"Distributor {fake.last_name()} {d}"
+    for distributor_index in range(1, request.distributors + 1):
+        distributor_id = f"D{distributor_index:04d}"
+        distributor_name = f"Distributor {fake.last_name()} {distributor_index}"
         beats = [
-            (f"{distributor_id}-B{b:03d}", f"Beat {b:03d}")
-            for b in range(1, request.beats_per_distributor + 1)
+            (f"{distributor_id}-B{beat_index:03d}", f"Beat {beat_index:03d}")
+            for beat_index in range(1, request.beats_per_distributor + 1)
         ]
         employees = [
-            (f"{distributor_id}-E{e:03d}", fake.name())
-            for e in range(1, request.employees_per_distributor + 1)
+            (f"{distributor_id}-E{employee_index:03d}", fake.name())
+            for employee_index in range(1, request.employees_per_distributor + 1)
         ]
+
+        beat_centers = []
+        for beat_index in range(len(beats)):
+            center_distance_km = (
+                request.radius_km * 0.8 * sqrt((beat_index + 0.5) / len(beats))
+                if len(beats) > 1 else 0
+            )
+            center_angle = beat_index * golden_angle
+            beat_centers.append((
+                center_distance_km * cos(center_angle),
+                center_distance_km * sin(center_angle),
+            ))
+        beat_radius_km = request.radius_km * 0.2 / sqrt(len(beats))
+        rep_centers_by_beat = []
+        for beat_center_x, beat_center_y in beat_centers:
+            rep_centers = []
+            for employee_index in range(len(employees)):
+                rep_distance_km = (
+                    beat_radius_km * 0.7 * sqrt((employee_index + 0.5) / len(employees))
+                    if len(employees) > 1 else 0
+                )
+                rep_angle = employee_index * golden_angle
+                rep_centers.append((
+                    beat_center_x + rep_distance_km * cos(rep_angle),
+                    beat_center_y + rep_distance_km * sin(rep_angle),
+                ))
+            rep_centers_by_beat.append(rep_centers)
+        rep_radius_km = (
+            beat_radius_km * 0.35 / sqrt(len(employees))
+            if len(employees) > 1 else beat_radius_km * 0.9
+        )
+        beat_outlet_counts = [0] * len(beats)
+
         for local_index in range(request.outlets_per_distributor):
-            beat_id, beat_name = beats[(local_index + rng.randrange(len(beats))) % len(beats)]
-            employee_id, employee_name = employees[(local_index + rng.randrange(len(employees))) % len(employees)]
+            beat_index = local_index % len(beats)
+            beat_id, beat_name = beats[beat_index]
+            employee_index = beat_outlet_counts[beat_index] % len(employees)
+            beat_outlet_counts[beat_index] += 1
+            employee_id, employee_name = employees[employee_index]
             angle = rng.random() * 6.283185307
-            distance_km = request.radius_km * (rng.random() ** 0.5)
-            latitude = center_lat + (distance_km / 111.0) * __import__("math").sin(angle)
-            longitude = center_lon + (distance_km / (111.0 * cos(radians(center_lat)))) * __import__("math").cos(angle)
+            distance_km = rep_radius_km * sqrt(rng.random())
+            rep_center_x, rep_center_y = rep_centers_by_beat[beat_index][employee_index]
+            latitude = center_lat + (rep_center_y + distance_km * sin(angle)) / 111.0
+            longitude = center_lon + (
+                (rep_center_x + distance_km * cos(angle))
+                / (111.0 * cos(radians(center_lat)))
+            )
             rows.append({
                 "Outlet ID": f"O{outlet_number:07d}",
                 "Outlet Name": fake.company().replace(",", ""),
