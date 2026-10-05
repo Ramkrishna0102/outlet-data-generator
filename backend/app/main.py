@@ -208,8 +208,8 @@ def preview(request: GenerationRequest) -> dict:
             "beats": request.distributors * request.beats_per_distributor,
             "employees": request.distributors * request.employees_per_distributor,
             "outlets": len(frame),
-            "average_outlets_per_beat": round(len(frame) / (request.distributors * request.beats_per_distributor), 2),
-            "average_outlets_per_employee": round(len(frame) / (request.distributors * request.employees_per_distributor), 2),
+            "average_outlets_per_beat": round(len(frame) / (request.distributors * request.beats_per_distributor)),
+            "average_outlets_per_employee": round(len(frame) / (request.distributors * request.employees_per_distributor)),
         },
         "records": frame.head(100).fillna("").to_dict(orient="records"),
     }
