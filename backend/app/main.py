@@ -1,6 +1,7 @@
 from io import BytesIO
 from math import cos, radians, sin, sqrt
 from random import Random
+from typing import Literal
 
 import pandas as pd
 from fastapi import FastAPI, File, HTTPException, UploadFile
@@ -73,6 +74,7 @@ class GenerationRequest(BaseModel):
     employees_per_distributor: int = Field(default=3, gt=0, le=1000)
     outlets_per_distributor: int = Field(default=100, gt=0, le=1000000)
     min_distance_m: float = Field(default=100, ge=0, le=10000)
+    visit_frequency: Literal[1, 2] = 1
     columns: list[str] = AVAILABLE_COLUMNS
     seed: int | None = None
 
@@ -155,7 +157,8 @@ def generate_data(request: GenerationRequest) -> pd.DataFrame:
             )
             rows.append({
                 "Outlet ID": f"O{outlet_number:07d}",
-                "Outlet Name": fake.company().replace(",", ""),
+                # "Outlet Name": fake.company().replace(",", ""),
+                "Outlet Name": f"shop{outlet_number:02d}",
                 "Latitude": round(latitude, 7),
                 "Longitude": round(longitude, 7),
                 "Distributor ID": distributor_id,
@@ -168,7 +171,7 @@ def generate_data(request: GenerationRequest) -> pd.DataFrame:
                 "City": request.location,
                 "State": "Uttar Pradesh" if request.location in ("Lucknow", "Noida") else "Delhi" if request.location == "Delhi" else "Maharashtra",
                 "Revenue": rng.randint(1, 100),
-                "Visit Frequency": rng.choice(["1", "2"]),
+                "Visit Frequency": str(request.visit_frequency),
             })
             outlet_number += 1
     return pd.DataFrame(rows, columns=request.columns)
